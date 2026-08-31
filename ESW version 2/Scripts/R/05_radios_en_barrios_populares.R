@@ -44,7 +44,7 @@ library(readr)
 # ── Rutas — ajustar si los archivos están en otra carpeta ────────────────────
 RUTA <- "C:/Users/NICOLASGA/OneDrive - Inter-American Development Bank Group/Documents/IDB/ESW HUD-SPH/ESW version 2"
 
-PATH_SHP_RADIOS  <- file.path(RUTA, "radios2022_v1_0.shp")
+PATH_SHP_RADIOS  <- file.path("C:/Users/NICOLASGA/OneDrive - Inter-American Development Bank Group/Documents/IDB/ESW HUD-SPH/Paper versión final - peer rev/ESW_HUD/ESW version 2/data/raw/radios_censales_2022/shapefile", "radios2022_v1_0.shp")
 PATH_BARRIOS     <- file.path(RUTA, "barrios_populares_poligono.csv")
 PATH_DATOS_RADIO <- file.path(RUTA, "radio_censal_unido.csv")
 
@@ -52,11 +52,11 @@ PATH_DATOS_RADIO <- file.path(RUTA, "radio_censal_unido.csv")
 # 1. CARGAR SHAPEFILE Y FILTRAR A CABA
 # =============================================================================
 
-cat("── 1. Cargando shapefile de radios censales...\n")
+cat("── 1. Cargando shapefile de radios censales.../n")
 
 Sys.setenv(SHAPE_RESTORE_SHX = "YES")
 radios_nac <- st_read(PATH_SHP_RADIOS, quiet = TRUE)
-cat(sprintf("   Total nacional: %d radios\n", nrow(radios_nac)))
+cat(sprintf("   Total nacional: %d radios/n", nrow(radios_nac)))
 
 # Filtrar CABA (PROV == "02") y construir el código Redatam desde los campos del DBF:
 #   codigo_redatam = (2000 + DEPTO) * 10000 + FRAC * 100 + RADIO
@@ -79,16 +79,16 @@ radios_sf <- radios_nac |>
     geometry
   )
 
-cat(sprintf("   CABA: %d radios\n", nrow(radios_sf)))
+cat(sprintf("   CABA: %d radios/n", nrow(radios_sf)))
 
 # =============================================================================
 # 2. UNIR SHAPEFILE CON DATOS DEL CENSO (radio_censal_unido.csv)
 # =============================================================================
 
-cat("── 2. Uniendo shapefile con indicadores del Censo 2022...\n")
+cat("── 2. Uniendo shapefile con indicadores del Censo 2022.../n")
 
 datos_radio <- read_csv(PATH_DATOS_RADIO, show_col_types = FALSE)
-cat(sprintf("   radio_censal_unido.csv: %d filas, %d variables\n",
+cat(sprintf("   radio_censal_unido.csv: %d filas, %d variables/n",
             nrow(datos_radio), ncol(datos_radio)))
 
 # Join exacto por codigo_redatam (match perfecto 3820 = 3820)
@@ -96,7 +96,7 @@ radios_con_datos <- radios_sf |>
   left_join(datos_radio, by = c("codigo_redatam" = "codigo"))
 
 n_matched <- sum(!is.na(radios_con_datos$total_viv))
-cat(sprintf("   Radios con datos de Censo: %d / %d\n", n_matched, nrow(radios_sf)))
+cat(sprintf("   Radios con datos de Censo: %d / %d/n", n_matched, nrow(radios_sf)))
 
 if (n_matched < nrow(radios_sf)) {
   warning(sprintf("%d radios sin datos de Censo tras el join.",
@@ -106,7 +106,7 @@ if (n_matched < nrow(radios_sf)) {
 # 3. CARGAR Y REPARAR BARRIOS POPULARES
 # =============================================================================
 
-cat("── 3. Cargando barrios populares...\n")
+cat("── 3. Cargando barrios populares.../n")
 
 barrios_raw <- read_csv(PATH_BARRIOS, show_col_types = FALSE,
                         locale = locale(encoding = "UTF-8"))
@@ -116,12 +116,12 @@ barrios_sf <- barrios_raw |>
   st_sf(crs = 4326) |>
   rename(id_barrio = id, nombre_barrio = nombre, tipo_barrio = tipo)
 
-cat(sprintf("   %d barrios populares cargados\n", nrow(barrios_sf)))
+cat(sprintf("   %d barrios populares cargados/n", nrow(barrios_sf)))
 
 # Reparar geometrías inválidas (vértices duplicados, loops degenerados)
 n_inv <- sum(!st_is_valid(barrios_sf))
 if (n_inv > 0) {
-  cat(sprintf("   Reparando %d geometrías inválidas...\n", n_inv))
+  cat(sprintf("   Reparando %d geometrías inválidas.../n", n_inv))
   barrios_sf <- st_make_valid(barrios_sf)
 }
 
@@ -131,7 +131,7 @@ sf_use_s2(FALSE)
 
 # Reproyectar todo a POSGAR 2007 / Argentina Transverse Mercator (metros)
 # OBLIGATORIO para calcular áreas correctamente
-cat("   Reproyectando a POSGAR 2007 (EPSG:22185) para cálculo de áreas...\n")
+cat("   Reproyectando a POSGAR 2007 (EPSG:22185) para cálculo de áreas.../n")
 
 radios_proj  <- radios_con_datos |> st_transform(22185)
 barrios_proj <- barrios_sf       |> st_transform(22185)
@@ -146,7 +146,7 @@ barrios_proj <- barrios_sf       |> st_transform(22185)
 # Un radio con peso = 0.3 tiene solo el 30% de su área dentro del barrio;
 # se le atribuye solo el 30% de sus viviendas/personas al barrio.
 
-cat("── 4. Calculando intersecciones y pesos por área...\n")
+cat("── 4. Calculando intersecciones y pesos por área.../n")
 
 # Área de cada radio (en m²) ANTES de intersectar
 radios_proj <- radios_proj |>
@@ -159,7 +159,7 @@ intersecciones <- st_intersection(
   barrios_proj |> select(id_barrio, nombre_barrio, tipo_barrio)
 )
 
-cat(sprintf("   Pares radio × barrio con solapamiento: %d\n", nrow(intersecciones)))
+cat(sprintf("   Pares radio × barrio con solapamiento: %d/n", nrow(intersecciones)))
 
 # Calcular área de cada intersección y el peso correspondiente
 intersecciones <- intersecciones |>
@@ -168,13 +168,13 @@ intersecciones <- intersecciones |>
     peso                 = area_interseccion_m2 / area_radio_m2
   )
 
-cat(sprintf("   Radios únicos que tocan algún barrio: %d\n",
+cat(sprintf("   Radios únicos que tocan algún barrio: %d/n",
             n_distinct(intersecciones$codigo_redatam)))
-cat(sprintf("   Barrios únicos con algún radio:       %d\n",
+cat(sprintf("   Barrios únicos con algún radio:       %d/n",
             n_distinct(intersecciones$id_barrio)))
 
 # Distribución de pesos (diagnóstico)
-cat("\n   Distribución de pesos (fracción del radio dentro del barrio):\n")
+cat("/n   Distribución de pesos (fracción del radio dentro del barrio):/n")
 print(summary(intersecciones$peso))
 
 # =============================================================================
@@ -190,7 +190,7 @@ print(summary(intersecciones$peso))
 #   total_viv_barrio = Σ total_ponderado
 #   pct_var        = n_var_barrio / total_viv_barrio × 100
 
-cat("── 5. Agregando indicadores por barrio (ponderación por área)...\n")
+cat("── 5. Agregando indicadores por barrio (ponderación por área).../n")
 
 # Variables de conteo a ponderar
 vars_n <- c(
@@ -250,7 +250,7 @@ indicadores_por_barrio <- intersecciones_datos |>
   ) |>
   arrange(nombre_barrio)
 
-cat(sprintf("   Barrios con al menos 1 radio: %d / %d\n",
+cat(sprintf("   Barrios con al menos 1 radio: %d / %d/n",
             nrow(indicadores_por_barrio), nrow(barrios_sf)))
 
 # Barrios sin solapamiento con ningún radio
@@ -260,7 +260,7 @@ barrios_sin_radio <- barrios_sf |>
   select(id_barrio, nombre_barrio, tipo_barrio)
 
 if (nrow(barrios_sin_radio) > 0) {
-  cat(sprintf("\n   Barrios sin radios solapantes (%d):\n", nrow(barrios_sin_radio)))
+  cat(sprintf("/n   Barrios sin radios solapantes (%d):/n", nrow(barrios_sin_radio)))
   print(barrios_sin_radio)
 }
 
@@ -268,16 +268,16 @@ if (nrow(barrios_sin_radio) > 0) {
 # 6. RESUMEN
 # =============================================================================
 
-cat("\n=== RESUMEN ===\n")
-cat(sprintf("  Total radios CABA:                    %d\n", nrow(radios_sf)))
-cat(sprintf("  Radios que tocan algún barrio:        %d\n",
+cat("/n=== RESUMEN ===/n")
+cat(sprintf("  Total radios CABA:                    %d/n", nrow(radios_sf)))
+cat(sprintf("  Radios que tocan algún barrio:        %d/n",
             n_distinct(intersecciones$codigo_redatam)))
-cat(sprintf("  Radios sin solapamiento con barrios:  %d\n",
+cat(sprintf("  Radios sin solapamiento con barrios:  %d/n",
             nrow(radios_sf) - n_distinct(intersecciones$codigo_redatam)))
-cat(sprintf("  Barrios con datos de radios:          %d / %d\n",
+cat(sprintf("  Barrios con datos de radios:          %d / %d/n",
             nrow(indicadores_por_barrio), nrow(barrios_sf)))
 
-cat("\n  Indicadores por barrio (top 10 por NBI):\n")
+cat("/n  Indicadores por barrio (top 10 por NBI):/n")
 print(
   indicadores_por_barrio |>
     arrange(desc(pct_NBI)) |>
@@ -290,7 +290,7 @@ print(
 # 7. EXPORTAR
 # =============================================================================
 
-cat("\n── 7. Exportando resultados...\n")
+cat("/n── 7. Exportando resultados.../n")
 
 # CSV 1: tabla de intersecciones con pesos (diagnóstico / trazabilidad)
 intersecciones_datos |>
@@ -328,7 +328,7 @@ st_write(
   quiet  = TRUE
 )
 
-cat("✓ Archivos exportados:\n")
-cat("   intersecciones_radio_barrio.csv  — 1 fila por par radio×barrio con pesos\n")
-cat("   indicadores_por_barrio.csv       — 1 fila por barrio con indicadores ponderados\n")
-cat("   radios_barrios.gpkg              — GeoPackage con 2 capas (para QGIS/R)\n")
+cat("✓ Archivos exportados:/n")
+cat("   intersecciones_radio_barrio.csv  — 1 fila por par radio×barrio con pesos/n")
+cat("   indicadores_por_barrio.csv       — 1 fila por barrio con indicadores ponderados/n")
+cat("   radios_barrios.gpkg              — GeoPackage con 2 capas (para QGIS/R)/n")
