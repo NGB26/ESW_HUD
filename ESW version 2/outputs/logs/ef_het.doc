@@ -1,0 +1,34 @@
+{\rtf1\fs24
+\trowd\trgaph75\trleft-75\intbl\trqc\clbrdrt\brdrs\cellx4176\clbrdrt\brdrs\cellx5040\clbrdrt\brdrs\cellx6336\clbrdrt\brdrs\cellx7200\clbrdrt\brdrs\cellx8496\clbrdrt\brdrs\cellx9360\clbrdrt\brdrs\cellx10512\clbrdrt\brdrs\cellx11376\clbrdrt\brdrs\cellx12672\clbrdrt\brdrs\cellx13536\clbrdrt\brdrs\cellx14832\clbrdrt\brdrs\cellx15696\clbrdrt\brdrs\cellx16992
+\ql \cell\qc (1)\cell\qc (2)\cell\qc (3)\cell\qc (4)\cell\qc (5)\cell\qc (6)\cell\qc (7)\cell\qc (8)\cell\qc (9)\cell\qc (10)\cell\qc (11)\cell\qc (12)\cell\row
+\trowd\trgaph75\trleft-75\trqc\cellx4176\cellx5040\cellx6336\cellx7200\cellx8496\cellx9360\cellx10512\cellx11376\cellx12672\cellx13536\cellx14832\cellx15696\cellx16992
+\trowd\trgaph75\trleft-75\trqc\clbrdrb\brdrs\cellx4176\clbrdrb\brdrs\cellx5040\clbrdrb\brdrs\cellx6336\clbrdrb\brdrs\cellx7200\clbrdrb\brdrs\cellx8496\clbrdrb\brdrs\cellx9360\clbrdrb\brdrs\cellx10512\clbrdrb\brdrs\cellx11376\clbrdrb\brdrs\cellx12672\clbrdrb\brdrs\cellx13536\clbrdrb\brdrs\cellx14832\clbrdrb\brdrs\cellx15696\clbrdrb\brdrs\cellx16992
+\ql VARIABLES\cell\qc const\cell\qc const\cell\qc const\cell\qc const\cell\qc const\cell\qc const\cell\qc sexo\cell\qc sexo\cell\qc sexo\cell\qc sexo\cell\qc sexo\cell\qc sexo\cell\row
+\trowd\trgaph75\trleft-75\trqc\cellx4176\cellx5040\cellx6336\cellx7200\cellx8496\cellx9360\cellx10512\cellx11376\cellx12672\cellx13536\cellx14832\cellx15696\cellx16992
+\ql \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\row
+\ql 0bno.mala_const\cell\qc -\cell\qc \cell\qc -\cell\qc \cell\qc -\cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\row
+\ql \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\row
+\ql 1o.mala_const\cell\qc -\cell\qc \cell\qc -\cell\qc \cell\qc -\cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\row
+\ql \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\row
+\ql 0bn.mala_const\cell\qc \cell\qc 0.104\cell\qc \cell\qc 0.169\cell\qc \cell\qc 0.130\cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\row
+\ql \cell\qc \cell\qc (0.136)\cell\qc \cell\qc (0.156)\cell\qc \cell\qc (0.159)\cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\row
+\ql 1.mala_const\cell\qc \cell\qc 0.140**\cell\qc \cell\qc 0.231***\cell\qc \cell\qc 0.254**\cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\row
+\ql \cell\qc \cell\qc (0.0565)\cell\qc \cell\qc (0.0859)\cell\qc \cell\qc (0.101)\cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\row
+\ql 1bno.sexo\cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc -\cell\qc \cell\qc -\cell\qc \cell\qc -\cell\qc \cell\row
+\ql \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\row
+\ql 2o.sexo\cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc -\cell\qc \cell\qc -\cell\qc \cell\qc -\cell\qc \cell\row
+\ql \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\row
+\ql 1bn.sexo\cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc 0.190***\cell\qc \cell\qc 0.249***\cell\qc \cell\qc 0.248***\cell\row
+\ql \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc (0.0469)\cell\qc \cell\qc (0.0824)\cell\qc \cell\qc (0.0939)\cell\row
+\ql 2.sexo\cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc 0.104\cell\qc \cell\qc 0.157*\cell\qc \cell\qc 0.152\cell\row
+\ql \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc (0.0643)\cell\qc \cell\qc (0.0925)\cell\qc \cell\qc (0.103)\cell\row
+\ql \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\qc \cell\row
+\ql Observations\cell\qc 6,307\cell\qc 6,307\cell\qc 6,303\cell\qc 6,303\cell\qc 6,301\cell\qc 6,301\cell\qc 6,307\cell\qc 6,307\cell\qc 6,303\cell\qc 6,303\cell\qc 6,301\cell\qc 6,301\cell\row
+\ql Controles sociodemográficos\cell\qc SI\cell\qc SI\cell\qc SI\cell\qc SI\cell\qc SI\cell\qc SI\cell\qc SI\cell\qc SI\cell\qc SI\cell\qc SI\cell\qc SI\cell\qc SI\cell\row
+\ql FE infraestructura\cell\qc NO\cell\qc NO\cell\qc SI\cell\qc SI\cell\qc SI\cell\qc SI\cell\qc NO\cell\qc NO\cell\qc SI\cell\qc SI\cell\qc SI\cell\qc SI\cell\row
+\trowd\trgaph75\trleft-75\trqc\trbrdrb\brdrs\clbrdrb\brdrs\cellx4176\clbrdrb\brdrs\cellx5040\clbrdrb\brdrs\cellx6336\clbrdrb\brdrs\cellx7200\clbrdrb\brdrs\cellx8496\clbrdrb\brdrs\cellx9360\clbrdrb\brdrs\cellx10512\clbrdrb\brdrs\cellx11376\clbrdrb\brdrs\cellx12672\clbrdrb\brdrs\cellx13536\clbrdrb\brdrs\cellx14832\clbrdrb\brdrs\cellx15696\clbrdrb\brdrs\cellx16992
+\ql FE distancia\cell\qc NO\cell\qc NO\cell\qc NO\cell\qc NO\cell\qc SI\cell\qc SI\cell\qc NO\cell\qc NO\cell\qc NO\cell\qc NO\cell\qc SI\cell\qc SI\cell\row
+\pard\qc
+Standard errors in parentheses\par
+*** p<0.01, ** p<0.05, * p<0.1\par
+}

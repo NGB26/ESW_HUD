@@ -1,0 +1,22 @@
+﻿# Bases de datos: no se versionan (tamaño + datos sensibles a nivel de paciente/radio censal)
+/data/*
+!/data/README.md
+
+# Carpeta de revision manual (duplicados/temporales) - no debe subirse
+/_archivo_a_revisar/
+
+# Sesion de R
+.RData
+.RDataTmp
+.Rhistory
+.Rproj.user/
+
+# Archivos temporales de Office
+~$*.docx
+~$*.xlsx
+~$*.pptx
+
+# Sistema
+.DS_Store
+Thumbs.db
+desktop.ini
