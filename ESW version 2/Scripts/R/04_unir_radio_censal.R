@@ -339,10 +339,10 @@ tipos <- c("Hospital", "Centro Medico Barrial", "CeSAC", "Estacion Saludable")
 # PASO 1 — CENTROS DENTRO O MÁS CERCANOS A CADA BARRIO
 # =============================================================================
 #
-# Para cada centro: asignar el barrio popular más cercano (sjoin por distancia).
+# Para cada centro: asignar el radio censal más cercano (sjoin por distancia).
 # Esto es informativo — el análisis principal de densidad usa el polígono/buffer.
 
-cat("── 5. Asignando centros a barrios más cercanos...\n")
+cat("── 5. Asignando centros a radio censales más cercanos / al que pertenecen...\n")
 
 centros_con_radio <- st_join(
   todos_centros_sf,
@@ -420,6 +420,141 @@ print(
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# =============================================================================
+# CENTRO DE SALUD MÁS CERCANO POR TIPO, A NIVEL DE RADIO CENSAL
+# Referencia: centroide de cada radio censal (radios_proj)
+# =============================================================================
+#
+# Requiere en el entorno:
+#   - radios_proj    : sf de radios censales, en CRS 22185, con columna codigo_redatam
+#   - todos_centros_sf: sf de centros de salud, en CRS 22185, con columnas
+#                        tipo_centro y nombre_centro
+#   - tipos          : vector de tipos de centro a evaluar (p.ej. c("Hospital","CeSAC"))
+#
+# Reemplaza el enfoque de matriz de distancias completa (st_distance() + apply(min))
+# por st_nearest_feature(), que evita construir la matriz n_radios x n_centros y
+# escala mucho mejor a nivel radio censal (miles de unidades).
+# Ref: https://r-spatial.github.io/sf/reference/st_nearest_feature.html
+
+cat("── Asignando centro más cercano por tipo (radio censal)...\n")
+
+# -----------------------------------------------------------------------------
+# 0) Chequeo de CRS: ambas capas deben compartir el mismo CRS proyectado
+# -----------------------------------------------------------------------------
+stopifnot(
+  "radios_proj y todos_centros_sf deben tener el mismo CRS" =
+    st_crs(radios_proj) == st_crs(todos_centros_sf)
+)
+
+# -----------------------------------------------------------------------------
+# 1) Centroides de los radios censales — única fuente de verdad para id_radio
+# -----------------------------------------------------------------------------
+centroides_radios <- radios_proj |>
+  st_centroid() |>
+  select(codigo_redatam)
+
+# -----------------------------------------------------------------------------
+# 2) Función: centro más cercano de un tipo dado, para todos los radios
+# -----------------------------------------------------------------------------
+asignar_centro_cercano <- function(tipo_sel, centroides, centros_sf) {
+  
+  centros_tipo <- centros_sf |>
+    filter(tipo_centro == tipo_sel, !st_is_empty(geometry))
+  
+  if (nrow(centros_tipo) == 0) {
+    return(tibble(
+      id_radio              = centroides$codigo_redatam,
+      tipo_centro            = tipo_sel,
+      nombre_centro_cercano  = NA_character_,
+      dist_eucl_m            = NA_real_,
+      dist_eucl_km           = NA_real_,
+      dist_red_km            = NA_real_,
+      tiempo_auto_min        = NA_real_,
+      tiempo_transp_min      = NA_real_
+    ))
+  }
+  
+  # Parámetros del modelo de acceso (mismos supuestos que el Paso 2/3 original)
+  VEL_AUTO_KMH   <- 20
+  VEL_TRANSP_KMH <- 12
+  FACTOR_TORT    <- 1.3
+  
+  # Índice del centro más cercano por radio censal (vectorizado)
+  idx_cercano <- st_nearest_feature(centroides, centros_tipo)
+  
+  # Distancia pareada radio <-> su centro más cercano ya identificado
+  dist_m <- as.numeric(
+    st_distance(centroides, centros_tipo[idx_cercano, ], by_element = TRUE)
+  )
+  
+  dist_km <- dist_m / 1000
+  
+  tibble(
+    id_radio              = centroides$codigo_redatam,
+    tipo_centro            = tipo_sel,
+    nombre_centro_cercano  = centros_tipo$nombre_centro[idx_cercano],
+    dist_eucl_m            = dist_m,
+    dist_eucl_km           = dist_km,
+    dist_red_km            = dist_km * FACTOR_TORT,
+    tiempo_auto_min        = dist_km * FACTOR_TORT / VEL_AUTO_KMH   * 60,
+    tiempo_transp_min      = dist_km * FACTOR_TORT / VEL_TRANSP_KMH * 60
+  ) |>
+    mutate(across(
+      c(dist_eucl_km, dist_red_km, tiempo_auto_min, tiempo_transp_min),
+      \(x) round(x, 3)
+    ))
+}
+
+# -----------------------------------------------------------------------------
+# 3) Aplicar a todos los tipos y apilar en formato largo
+# -----------------------------------------------------------------------------
+centro_cercano_radio <- bind_rows(
+  lapply(
+    tipos,
+    asignar_centro_cercano,
+    centroides = centroides_radios,
+    centros_sf = todos_centros_sf
+  )
+)
+
+# -----------------------------------------------------------------------------
+# 4) Chequeo rápido de cobertura por tipo
+# -----------------------------------------------------------------------------
+cat("\n   Resumen de cobertura por tipo:\n")
+centro_cercano_radio |>
+  group_by(tipo_centro) |>
+  summarise(
+    n_radios      = n(),
+    n_sin_centro  = sum(is.na(dist_eucl_m)),
+    dist_prom_km  = round(mean(dist_eucl_km, na.rm = TRUE), 2),
+    dist_max_km   = round(max(dist_eucl_km,  na.rm = TRUE), 2)
+  ) |>
+  print()
+
+# -----------------------------------------------------------------------------
+# ⚠️ Nota metodológica para el uso posterior de estas variables en un modelo:
+# dist_eucl_km, dist_red_km, tiempo_auto_min y tiempo_transp_min son
+# transformaciones lineales exactas de la misma distancia (colinealidad
+# perfecta por construcción). Usar UNA sola de las cuatro como covariable de
+# acceso en la regresión — el resto sirve para reportar en unidades más
+# interpretables (Greene, Econometric Analysis, Assumption 2 "Full Rank", §2.3.2).
+# -----------------------------------------------------------------------------
 
 
 
