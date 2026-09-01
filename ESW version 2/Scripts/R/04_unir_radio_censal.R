@@ -39,7 +39,7 @@ library(tidyverse)
 
 # Carpeta donde están los xlsx (ajustar si es necesario)
 RUTA <- "C:/Users/NICOLASGA/OneDrive - Inter-American Development Bank Group/Documents/IDB/ESW HUD-SPH/Paper versión final - peer rev/ESW_HUD/ESW version 2/data/raw/censo_2022"
-
+RUTA_hosp <- "C:/Users/NICOLASGA/OneDrive - Inter-American Development Bank Group/Documents/IDB/ESW HUD-SPH/Paper versión final - peer rev/ESW_HUD/ESW version 2/data/raw/salud"
 # Definición de archivos: nombre_archivo -> nombre_variable de destino
 # Cada fila tiene: archivo, variable_total, variable_n, variable_pct
 #   variable_total = denominador (total viviendas del radio)
@@ -99,7 +99,7 @@ leer_radio <- function(archivo, var_total, var_n, var_pct) {
   names(df)[names(df) == "total"] <- var_total
   names(df)[names(df) == "n"]     <- var_n
   names(df)[names(df) == "pct"]   <- var_pct
-
+  
   df
 }
 
@@ -121,7 +121,7 @@ cat(sprintf("  [1/9] %s — %d radios\n", archivos_radio$archivo[1], nrow(base))
 resultado <- base
 
 for (i in seq(2, nrow(archivos_radio))) {
-
+  
   df_nuevo <- leer_radio(
     archivos_radio$archivo[i],
     archivos_radio$var_total[i],
@@ -131,9 +131,9 @@ for (i in seq(2, nrow(archivos_radio))) {
     # El total de viviendas es el mismo en todos → lo eliminamos antes del join
     # para no duplicarlo (lo mantenemos solo del primer archivo)
     select(-matches("^total_viv$"))
-
+  
   resultado <- full_join(resultado, df_nuevo, by = "codigo")
-
+  
   cat(sprintf("  [%d/9] %s — %d radios\n",
               i, archivos_radio$archivo[i], nrow(df_nuevo)))
 }
@@ -414,8 +414,8 @@ print(
 )
 
 
-
-
+base_radios<- left_join(distancias_tiempos, datos_radio_censo, by = c("id_radio"="codigo"))
+base_radios_wide<-base_radios%>%pivot_wider(names_from=tipo_centro, values_from=c(dist_eucl_m, dist_eucl_km, dist_red_km, tiempo_auto_min, tiempo_transp_min))
 
 
 
@@ -570,9 +570,271 @@ centro_cercano_radio |>
 
 
 
+# =============================================================================
+# LÍNEAS: CENTROIDE DE RADIO CENSAL -> CENTRO DE SALUD MÁS CERCANO POR TIPO
+# =============================================================================
+#
+# Requiere en el entorno:
+#   - radios_proj     : sf de radios censales, en CRS 22185, con columna codigo_redatam
+#   - todos_centros_sf: sf de centros de salud, en CRS 22185, con columnas
+#                        tipo_centro y nombre_centro
+#   - tipos           : vector de tipos de centro a evaluar
+#
+# A nivel radio censal (~3.500 unidades en CABA) el volumen de líneas es alto,
+# así que el mapa las agrupa por tipo_centro como capas togglables
+# (addLayersControl) en vez de mostrar todo simultáneamente.
+#
+# st_nearest_points(x, y, pairwise = TRUE) entre dos capas de puntos devuelve
+# el LINESTRING recto que une cada par x[i]-y[i].
+# Ref: https://r-spatial.github.io/sf/reference/st_nearest_points.html
+
+cat("── Armando líneas centroide de radio censal -> centro más cercano por tipo...\n")
+
+# -----------------------------------------------------------------------------
+# 0) Chequeo de CRS
+# -----------------------------------------------------------------------------
+stopifnot(
+  "radios_proj y todos_centros_sf deben tener el mismo CRS" =
+    st_crs(radios_proj) == st_crs(todos_centros_sf)
+)
+
+# -----------------------------------------------------------------------------
+# 1) Centroides de radio censal — única fuente de verdad para id_radio
+# -----------------------------------------------------------------------------
+centroides_radios <- radios_proj |>
+  st_centroid() |>
+  select(codigo_redatam)
+
+cat(glue::glue("   {nrow(centroides_radios)} radios censales cargados.\n"))
+
+# -----------------------------------------------------------------------------
+# 2) Función: línea centroide -> centro más cercano, para un tipo dado
+# -----------------------------------------------------------------------------
+lineas_centro_cercano <- function(tipo_sel, centroides, centros_sf) {
+  
+  centros_tipo <- centros_sf |>
+    filter(tipo_centro == tipo_sel, !st_is_empty(geometry))
+  
+  if (nrow(centros_tipo) == 0) {
+    message(glue::glue("  Sin centros de tipo '{tipo_sel}' — se omite."))
+    return(NULL)
+  }
+  
+  idx_cercano <- st_nearest_feature(centroides, centros_tipo)
+  
+  geom_lineas <- st_nearest_points(
+    centroides, centros_tipo[idx_cercano, ], pairwise = TRUE
+  )
+  
+  st_sf(
+    id_radio               = centroides$codigo_redatam,
+    tipo_centro             = tipo_sel,
+    nombre_centro_cercano   = centros_tipo$nombre_centro[idx_cercano],
+    dist_km                 = round(as.numeric(st_length(geom_lineas)) / 1000, 3),
+    geometry                = geom_lineas
+  )
+}
+
+# -----------------------------------------------------------------------------
+# 3) Aplicar a todos los tipos y apilar
+# -----------------------------------------------------------------------------
+lineas_radio_centro <- bind_rows(
+  lapply(
+    tipos,
+    lineas_centro_cercano,
+    centroides = centroides_radios,
+    centros_sf = todos_centros_sf
+  )
+)
+
+cat("\n   Resumen de distancias por tipo (radio censal -> centro más cercano):\n")
+lineas_radio_centro |>
+  st_drop_geometry() |>
+  group_by(tipo_centro) |>
+  summarise(
+    n_radios     = n(),
+    dist_prom_km = round(mean(dist_km), 2),
+    dist_max_km  = round(max(dist_km), 2)
+  ) |>
+  print()
+
+# -----------------------------------------------------------------------------
+# 4) Mapa leaflet — reproyectar a 4326, capas por tipo togglables
+# -----------------------------------------------------------------------------
+library(leaflet)
+
+lineas_4326  <- st_transform(lineas_radio_centro, 4326)
+centros_4326 <- st_transform(todos_centros_sf,     4326)
+
+tipos_presentes <- unique(lineas_4326$tipo_centro)
+pal <- colorFactor(palette = "Set1", domain = tipos_presentes)
+
+mapa_acceso <- leaflet() |>
+  addProviderTiles(providers$CartoDB.Positron)
+
+# Una capa de polylines + una de marcadores de centros por tipo
+for (tipo_sel in tipos_presentes) {
+  
+  mapa_acceso <- mapa_acceso |>
+    addPolylines(
+      data    = filter(lineas_4326, tipo_centro == tipo_sel),
+      color   = ~pal(tipo_centro),
+      weight  = 1.2,
+      opacity = 0.5,
+      label   = ~paste0(id_radio, " → ", nombre_centro_cercano,
+                        " (", dist_km, " km)"),
+      group   = tipo_sel
+    ) |>
+    addCircleMarkers(
+      data        = filter(centros_4326, tipo_centro == tipo_sel),
+      radius      = 4,
+      color       = ~pal(tipo_centro),
+      fillOpacity = 1,
+      label       = ~nombre_centro,
+      group       = tipo_sel
+    )
+}
+
+mapa_acceso <- mapa_acceso |>
+  addLayersControl(
+    overlayGroups = tipos_presentes,
+    options       = layersControlOptions(collapsed = FALSE)
+  ) |>
+  addLegend(pal = pal, values = tipos_presentes, title = "Tipo de centro")
+
+# Por defecto solo se muestra el primer tipo (evita saturar el mapa al abrir)
+for (tipo_sel in tipos_presentes[-1]) {
+  mapa_acceso <- mapa_acceso |> hideGroup(tipo_sel)
+}
+
+mapa_acceso
 
 
 
+# =============================================================================
+# MAPA ESTÁTICO (ggplot): RADIOS CENSALES + LÍNEAS AL CENTRO MÁS CERCANO
+# Solo CeSAC y Hospitales, en un mismo mapa
+# =============================================================================
+#
+# Requiere en el entorno:
+#   - radios_proj     : sf de radios censales, en CRS 22185, con columna codigo_redatam
+#   - todos_centros_sf: sf de centros de salud, en CRS 22185, con columnas
+#                        tipo_centro y nombre_centro
+#
+# Ajustar estas dos etiquetas a como estén escritas realmente en tu columna
+# tipo_centro (p.ej. podría ser "CESAC", "Centro de Salud", "CeSAC/CMB", etc.)
+tipos_mapa <- c("Hospital", "CeSAC")
 
+library(ggplot2)
 
+cat("── Armando mapa estático: radios censales + líneas a CeSAC/Hospital más cercano...\n")
 
+# -----------------------------------------------------------------------------
+# 0) Chequeo de CRS
+# -----------------------------------------------------------------------------
+stopifnot(
+  "radios_proj y todos_centros_sf deben tener el mismo CRS" =
+    st_crs(radios_proj) == st_crs(todos_centros_sf)
+)
+
+# -----------------------------------------------------------------------------
+# 1) Centroides de radio censal
+# -----------------------------------------------------------------------------
+centroides_radios <- radios_proj |>
+  st_centroid() |>
+  select(codigo_redatam)
+
+# -----------------------------------------------------------------------------
+# 2) Función: línea centroide -> centro más cercano, para un tipo dado
+#    (misma lógica que en el script anterior)
+# -----------------------------------------------------------------------------
+lineas_centro_cercano <- function(tipo_sel, centroides, centros_sf) {
+  
+  centros_tipo <- centros_sf |>
+    filter(tipo_centro == tipo_sel, !st_is_empty(geometry))
+  
+  if (nrow(centros_tipo) == 0) {
+    message(glue::glue("  Sin centros de tipo '{tipo_sel}' — se omite."))
+    return(NULL)
+  }
+  
+  idx_cercano <- st_nearest_feature(centroides, centros_tipo)
+  
+  geom_lineas <- st_nearest_points(
+    centroides, centros_tipo[idx_cercano, ], pairwise = TRUE
+  )
+  
+  st_sf(
+    id_radio               = centroides$codigo_redatam,
+    tipo_centro             = tipo_sel,
+    nombre_centro_cercano   = centros_tipo$nombre_centro[idx_cercano],
+    dist_km                 = round(as.numeric(st_length(geom_lineas)) / 1000, 3),
+    geometry                = geom_lineas
+  )
+}
+
+# -----------------------------------------------------------------------------
+# 3) Líneas y puntos, restringidos a CeSAC y Hospital
+# -----------------------------------------------------------------------------
+lineas_mapa <- bind_rows(
+  lapply(
+    tipos_mapa,
+    lineas_centro_cercano,
+    centroides = centroides_radios,
+    centros_sf = todos_centros_sf
+  )
+)
+
+centros_mapa <- todos_centros_sf |>
+  filter(tipo_centro %in% tipos_mapa)
+
+# -----------------------------------------------------------------------------
+# 4) Mapa estático
+# -----------------------------------------------------------------------------
+colores_tipo <- c("Hospital" = "#a6dba0", "CeSAC" = "#009ADE")  # ajustar nombres si difieren
+
+mapa_estatico <- ggplot() +
+  # Límite de cada radio censal
+  geom_sf(data = radios_proj, fill = NA, color = "grey75", linewidth = 0.12) +
+  # Líneas centroide -> centro más cercano
+  geom_sf(
+    data = lineas_mapa,
+    aes(color = tipo_centro),
+    linewidth = 0.2, alpha = 0.35, show.legend = "line"
+  ) +
+  # Centros de salud
+  geom_sf(
+    data = centros_mapa,
+    aes(color = tipo_centro, shape = tipo_centro),
+    size = 1.9, stroke = 0.6
+  ) +
+  scale_color_manual(values = colores_tipo, name = "Tipo de centro") +
+  scale_shape_manual(values = c("Hospital" = 17, "CeSAC" = 16), name = "Tipo de centro") +
+  labs(
+    title    = "Acceso desde cada radio censal al CeSAC/Hospital más cercano",
+    subtitle = "CABA — línea recta centroide del radio → centro más cercano por tipo"
+  ) +
+  theme_void() +
+  theme(
+    plot.title    = element_text(face = "bold", size = 13, hjust = 0.5),
+    plot.subtitle = element_text(size = 9, hjust = 0.5, color = "grey30"),
+    legend.position = "bottom"
+  )
+
+# Escala y norte (opcional, requiere el paquete ggspatial: install.packages("ggspatial"))
+# library(ggspatial)
+# mapa_estatico <- mapa_estatico +
+#   annotation_scale(location = "bl", width_hint = 0.25) +
+#   annotation_north_arrow(location = "br", which_north = "true",
+#                           style = north_arrow_minimal())
+
+mapa_estatico
+
+# -----------------------------------------------------------------------------
+# 5) Exportar en alta resolución
+# -----------------------------------------------------------------------------
+ggsave(
+  filename = "mapa_acceso_cesac_hospital.png",
+  plot     = mapa_estatico,
+  width    = 10, height = 10, dpi = 300, bg = "white"
+)

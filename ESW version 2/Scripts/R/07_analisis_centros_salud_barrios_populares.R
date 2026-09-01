@@ -61,6 +61,10 @@ sf_use_s2(FALSE)
 
 # ── Rutas ─────────────────────────────────────────────────────────────────────
 RUTA <- "C:/Users/NICOLASGA/OneDrive - Inter-American Development Bank Group/Documents/IDB/ESW HUD-SPH/ESW version 2"
+RUTA_B<- "C:/Users/NICOLASGA/OneDrive - Inter-American Development Bank Group/Documents/IDB/ESW HUD-SPH/Paper versión final - peer rev/ESW_HUD/ESW version 2/data/raw/barrios_populares"
+PATH_SHP_RADIOS  <- file.path("C:/Users/NICOLASGA/OneDrive - Inter-American Development Bank Group/Documents/IDB/ESW HUD-SPH/Paper versión final - peer rev/ESW_HUD/ESW version 2/data/raw/radios_censales_2022/shapefile", "radios2022_v1_0.shp")
+PATH_BARRIOS     <- file.path(RUTA_B, "barrios_populares_poligono.csv")
+
 
 # ── Parámetros ────────────────────────────────────────────────────────────────
 VEL_AUTO_KMH   <- 20
@@ -79,7 +83,7 @@ HOSP_LAT0 <- -35.2641
 cat("── 1. Cargando barrios populares...\n")
 
 barrios_raw <- read_csv(
-  file.path(RUTA, "barrios_populares_poligono.csv"),
+  file.path(RUTA_B, "barrios_populares_poligono.csv"),
   show_col_types = FALSE,
   locale = locale(encoding = "UTF-8")
 )
@@ -136,29 +140,34 @@ cat("── 3. Cargando hospitales...\n")
 
 cos_lat0 <- cos(HOSP_LAT0 * pi / 180)
 
+hospitales_sf <- hospitales_sf ##sale del scrip 04_unir_radio_censal ## 
+cat(sprintf("   %d hospitales\n", nrow(hospitales_sf)))
+
+# =============================================================================
+# 4. CARGAR HOSPITALES Y CENTROS DE SALUD
+# =============================================================================
+
+# CRS oficial catastro CABA (reemplaza "0 de Flores", vigente desde 2020)
+# https://epsg.io/9498
+crs_caba2019 <- "+proj=tmerc +lat_0=-34.6292666666667 +lon_0=-58.4633083333333 +k=1 +x_0=20000 +y_0=70000 +ellps=WGS84 +units=m +no_defs"
+# alternativa si tu PROJ ya tiene el código EPSG registrado: crs = 9498
+
 hospitales_sf <- read_csv(
-  file.path(RUTA, "hospitales.csv"),
+  file.path(RUTA_hosp, "hospitales.csv"),
   show_col_types = FALSE,
   locale = locale(encoding = "UTF-8")
 ) |>
   mutate(
-    x_local = as.numeric(str_extract(geometry, "(?<=POINT \\()[-0-9.]+")),
-    y_local = as.numeric(str_extract(geometry, "(?<=POINT \\([-0-9.]+ )[-0-9.]+")),
-    lon = HOSP_LON0 + x_local / (111320 * cos_lat0),
-    lat = HOSP_LAT0 + y_local / 111320,
     tipo_centro   = "Hospital",
     nombre_centro = fna,
     comuna_texto  = paste0("Comuna ", com)
   ) |>
-  filter(!is.na(lon), !is.na(lat)) |>
-  st_as_sf(coords = c("lon", "lat"), crs = 4326) |>
+  st_as_sf(wkt = "geometry", crs = crs_caba2019) |>
   select(tipo_centro, nombre_centro, comuna_texto) |>
   st_transform(22185)
 
-cat(sprintf("   %d hospitales\n", nrow(hospitales_sf)))
-
 # =============================================================================
-# 4. CARGAR CENTROS WGS84
+# 4.1 CARGAR CENTROS WGS84
 # =============================================================================
 
 cat("── 4. Cargando CMB, CeSAC y estaciones saludables...\n")
@@ -180,12 +189,12 @@ leer_wgs84 <- function(path, tipo, col_nombre = "nombre", col_comuna = "comuna")
   sf_obj
 }
 
-cmb_sf <- leer_wgs84(file.path(RUTA, "centros_medicos_barriales.csv"),
+cmb_sf <- leer_wgs84(file.path(RUTA_hosp, "centros_medicos_barriales.csv"),
                      tipo = "Centro Medico Barrial")
-cesac_sf <- leer_wgs84(file.path(RUTA, "centros_salud_nivel_1_cesac.csv"),
+cesac_sf <- leer_wgs84(file.path(RUTA_hosp, "centros_salud_nivel_1_cesac.csv"),
                        tipo = "CeSAC")
-estaciones_sf <- leer_wgs84(file.path(RUTA, "estaciones_saludables.csv"),
-                             tipo = "Estacion Saludable")
+estaciones_sf <- leer_wgs84(file.path(RUTA_hosp, "estaciones_saludables.csv"),
+                            tipo = "Estacion Saludable")
 
 todos_centros_sf <- bind_rows(hospitales_sf, cmb_sf, cesac_sf, estaciones_sf)
 

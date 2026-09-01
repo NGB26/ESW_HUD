@@ -43,9 +43,9 @@ library(readr)
 
 # ── Rutas — ajustar si los archivos están en otra carpeta ────────────────────
 RUTA <- "C:/Users/NICOLASGA/OneDrive - Inter-American Development Bank Group/Documents/IDB/ESW HUD-SPH/ESW version 2"
-
+RUTA_B<- "C:/Users/NICOLASGA/OneDrive - Inter-American Development Bank Group/Documents/IDB/ESW HUD-SPH/Paper versión final - peer rev/ESW_HUD/ESW version 2/data/raw/barrios_populares"
 PATH_SHP_RADIOS  <- file.path("C:/Users/NICOLASGA/OneDrive - Inter-American Development Bank Group/Documents/IDB/ESW HUD-SPH/Paper versión final - peer rev/ESW_HUD/ESW version 2/data/raw/radios_censales_2022/shapefile", "radios2022_v1_0.shp")
-PATH_BARRIOS     <- file.path(RUTA, "barrios_populares_poligono.csv")
+PATH_BARRIOS     <- file.path(RUTA_B, "barrios_populares_poligono.csv")
 PATH_DATOS_RADIO <- file.path(RUTA, "radio_censal_unido.csv")
 
 # =============================================================================
@@ -87,9 +87,7 @@ cat(sprintf("   CABA: %d radios/n", nrow(radios_sf)))
 
 cat("── 2. Uniendo shapefile con indicadores del Censo 2022.../n")
 
-datos_radio <- read_csv(PATH_DATOS_RADIO, show_col_types = FALSE)
-cat(sprintf("   radio_censal_unido.csv: %d filas, %d variables/n",
-            nrow(datos_radio), ncol(datos_radio)))
+datos_radio <- datos_radio_censo
 
 # Join exacto por codigo_redatam (match perfecto 3820 = 3820)
 radios_con_datos <- radios_sf |>
