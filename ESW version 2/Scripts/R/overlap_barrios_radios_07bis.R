@@ -198,4 +198,4 @@ comuna<-base_radios1%>%group_by(nom_depto)%>%summarise(tiempo_transp_cesac=mean(
 mapa_calor_comuna<-ggplot()+ 
   geom_sf(data=comuna, aes(fill=tiempo_transp_cesac), color="white", linewidth=NA)
 
-mapa_calor_comuna
+#mapa_calor_comuna
