@@ -43,7 +43,7 @@ set.seed(1234)   # reproducibilidad — documentar esta semilla si esto va al pa
 
 # Constantes globales -------------------------------------------------------
 
-N_SIM                  <- 10
+N_SIM                  <- 1000
 PONDERAR_POR_POBLACION <- TRUE   # TRUE: pondera por total_viv | FALSE: uniforme
 
 # Si TRUE, el promedio Monte Carlo de cada coeficiente se toma sobre el MISMO
