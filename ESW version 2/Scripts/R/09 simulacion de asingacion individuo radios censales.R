@@ -1359,6 +1359,9 @@ resultados_todas_comuna_ok <- ejecutar_todas(especificaciones_comuna_ok, datos_p
 resumen_mc_comuna_ok       <- calcular_resumen(resultados_todas_comuna_ok)
 modelo_stats_comuna_ok     <- calcular_modelo_stats(resultados_todas_comuna_ok)
 
+resultados_todas_comuna_ok_clus <- ejecutar_todas(especificaciones_comuna_ok, datos_por_iteracion, vcov_type = "comuna_ok")
+resumen_mc_comuna_ok_clus       <- calcular_resumen(resultados_todas_comuna_ok_clus)
+modelo_stats_comuna_ok_clus     <- calcular_modelo_stats(resultados_todas_comuna_ok_clus)
 
 
 # =============================================================================
@@ -1595,6 +1598,13 @@ cat("\n   N por especificación (submuestra BP):\n")
 print(modelo_stats_bp)
 
 
+
+# Correr las mismas specs (EE clusterizados por COMUNA_OK, coherente
+# con la especificación principal). Se puede cambiar vcov_type a "iid".
+resultados_bp_cok     <- ejecutar_todas(especificaciones_comuna_ok, datos_por_iteracion_bp, vcov_type = "comuna_ok")
+resumen_mc_bp_cok     <- calcular_resumen(resultados_bp_cok)
+modelo_stats_bp_cok   <- calcular_modelo_stats(resultados_bp_cok)
+
 # =============================================================================
 # PARTE V-quater — ROBUSTEZ + REPONDERACIÓN IPW (villa | comuna)
 # =============================================================================
@@ -1677,7 +1687,7 @@ datos_por_iteracion_bp_w <- map(datos_por_iteracion_bp, function(di) {
 # Se replica ajustar_spec pero pasando weights = ~w_ipw. Se mantiene el mismo
 # esquema de vcov clusterizado por comuna_regresion.
 
-ajustar_spec_w <- function(data, spec, vcov_type = "comuna_regresion", peso = "w_ipw") {
+ajustar_spec_w <- function(data, spec, vcov_type = "comuna_ok", peso = "w_ipw") {
   vcov_arg <- if (identical(vcov_type, "iid")) "iid" else as.formula(paste0("~", vcov_type))
   data_ok  <- data[!is.na(data[[peso]]), , drop = FALSE]
   
@@ -1709,8 +1719,8 @@ ejecutar_todas_w <- function(especificaciones, datos_por_iteracion, vcov_type, p
   })
 }
 
-resultados_bp_w   <- ejecutar_todas_w(especificaciones, datos_por_iteracion_bp_w,
-                                      vcov_type = "comuna_regresion", peso = "w_ipw")
+resultados_bp_w   <- ejecutar_todas_w(especificaciones_comuna_ok, datos_por_iteracion_bp_w,
+                                      vcov_type = "comuna_ok", peso = "w_ipw")
 resumen_mc_bp_w   <- calcular_resumen(resultados_bp_w)
 modelo_stats_bp_w <- calcular_modelo_stats(resultados_bp_w)
 
@@ -1782,6 +1792,42 @@ ft_bp_w <- armar_tabla_flextable(
   )
 )
 
+
+# --- Tabla faltante 1: FE = comuna_ok, EE clusterizados por comuna_ok ------
+# (V.3 calcula resumen_mc_comuna_ok_clus / modelo_stats_comuna_ok_clus pero
+#  nunca se vuelcan a tabla — la única versión exportada hasta ahora era la
+#  de EE clásicos, ft_comuna_ok)
+
+ft_comuna_ok_cluster <- armar_tabla_flextable(
+  resumen_mc_comuna_ok_clus, modelo_stats_comuna_ok_clus, especificaciones_comuna_ok,
+  nota_pie = paste(
+    "Nota: coeficiente promedio entre iteraciones.", nota_rubin, nota_imputacion_tiempo,
+    "* p<0.10, ** p<0.05, *** p<0.01. EE base clusterizados por comuna_ok. FE de comuna: comuna_ok."
+  )
+)
+
+ft_comuna_ok_cluster
+save_as_docx(ft_comuna_ok_cluster, path = "tabla_regresiones_villa_FEcomunaOK_EEcluster.docx")
+
+
+# --- Tabla faltante 2: robustez BP, FE = comuna_ok, EE cluster por comuna_ok
+# (V-ter calcula resumen_mc_bp_cok / modelo_stats_bp_cok pero nunca se
+#  vuelcan a tabla — la única versión exportada hasta ahora era ft_bp, con
+#  FE = comuna_regresion)
+
+ft_bp_comuna_ok <- armar_tabla_flextable(
+  resumen_mc_bp_cok, modelo_stats_bp_cok, especificaciones_comuna_ok,
+  nota_pie = paste(
+    "Nota: robustez restringida a comunas con presencia de villa (soporte com\u00fan villa/no-villa).",
+    nota_rubin, nota_imputacion_tiempo,
+    "* p<0.10, ** p<0.05, *** p<0.01. EE base clusterizados por comuna_ok. FE de comuna: comuna_ok.",
+    "Comunas sin ninguna villa quedan excluidas (el contraste no est\u00e1 identificado all\u00ed)."
+  )
+)
+
+ft_bp_comuna_ok
+save_as_docx(ft_bp_comuna_ok, path = "tabla_robustez_comunas_con_villa_FEcomunaOK.docx")
+
 # --- Tabla diagnóstica de Rubin: descomposición de varianza por coeficiente ---
 # Muestra, para los coeficientes de interés, cuánta de la incertidumbre total
 # proviene de la incertidumbre de agregación geográfica (FMI). Insumo directo
@@ -1851,57 +1897,157 @@ save_as_docx(ft_rubin_diag, path = "tabla_diagnostico_Rubin.docx")
 # Los datos vienen de `resultados_todas` (iid) filtrando por regresion_id.
 # Cambiar las specs elegidas según qué distribuciones interesen mostrar.
 
-cat("── VII. Armando gráficos de distribución de coeficientes...\n")
+# =============================================================================
+# PARTE VII-bis — GRÁFICOS COMPARATIVOS DE VILLA (todas las alternativas)
+# =============================================================================
+#
+# Para cada tabla/alternativa ya armada se generan DOS gráficos:
+#
+#   (A) Forest plot (IC clásico): coeficiente puntual + IC 95% de Rubin de
+#       "Villa (dummy)" en cada especificación, y además el término de
+#       interacción log(tiempo) × Villa en las specs que lo tienen (reg6, reg7).
+#
+#   (B) Panel de histogramas: distribución de los 1000 coeficientes MC del
+#       mismo conjunto de términos (villa sola + interacción donde aplique).
+#
+# Alternativas cubiertas (7, una por cada tabla ya exportada):
+#   1. Estándar        -> resumen_mc            / resultados_todas
+#   2. Cluster com_reg  -> resumen_mc_cluster    / resultados_todas_cluster
+#   3. FE comuna_ok     -> resumen_mc_comuna_ok  / resultados_todas_comuna_ok
+#   4. FE comuna_ok clu -> resumen_mc_comuna_ok_clus / resultados_todas_comuna_ok_clus
+#   5. Robustez BP      -> resumen_mc_bp         / resultados_bp
+#   6. Robustez BP cok  -> resumen_mc_bp_cok     / resultados_bp_cok
+#   7. Robustez BP+IPW  -> resumen_mc_bp_w       / resultados_bp_w
+#
+# NOTA: los pares (1,2) y (3,4) van a dar el MISMO histograma — el vcov no
+# mueve el coeficiente puntual (ver chequeo de sanidad en V.2), solo el EE.
+# Por eso en el forest plot el punto es idéntico entre esos pares y lo único
+# que cambia es el ancho del IC.
+# =============================================================================
 
-p_villa_reg3 <- plot_distribucion_coef(
-  resultados_todas, "reg3", "factor(villa)1",
-  "Villa → log(Días desde última consulta)\n(Reg 3: + FE comuna)",
-  color = "#D7263D"
-)
+# --- A.11 Términos de interés (villa sola + interacción si la spec la tiene) 
 
-p_tiempo_reg4 <- plot_distribucion_coef(
-  resultados_todas, "reg4", "log(tiempo_transporte_cesac_t)",
-  "log(Tiempo al CeSAC) → log(Días)\n(Reg 4)",
-  color = "#E09F3E"
-)
+terminos_villa_interes <- function(spec) {
+  terms <- "factor(villa)1"
+  if ("log(tiempo_transporte_cesac_t):factor(villa)1" %in% spec$coefs) {
+    terms <- c(terms, "log(tiempo_transporte_cesac_t):factor(villa)1")
+  }
+  terms
+}
 
-p_nbi_reg5 <- plot_distribucion_coef(
-  resultados_todas, "reg5", "pct_NBI_t",
-  "NBI (%)\n(Reg 5)",
-  color = "#5C4D7D"
-)
+# --- A.12 Forest plot (coef + IC 95% Rubin) de villa/interacción por spec ---
 
-p_hac_reg5 <- plot_distribucion_coef(
-  resultados_todas, "reg5", "pct_hacinamiento_t",
-  "Hacinamiento (%)\n(Reg 5)",
-  color = "#5C4D7D"
-)
+plot_forest_villa <- function(resumen, especificaciones, titulo, subtitulo = NULL) {
+  terminos_interes <- c("factor(villa)1", "log(tiempo_transporte_cesac_t):factor(villa)1")
+  etiquetas   <- map_chr(especificaciones, "label")
+  niveles_ord <- rev(etiquetas[names(especificaciones)])  # reg1 arriba tras coord_flip
+  
+  datos_plot <- resumen |>
+    filter(term %in% terminos_interes) |>
+    mutate(
+      regresion_label = factor(etiquetas[regresion_id], levels = unique(niveles_ord)),
+      tipo_coef = if_else(term == "factor(villa)1",
+                          "Villa (dummy)", "Interacción tiempo × Villa")
+    )
+  
+  if (nrow(datos_plot) == 0) {
+    warning(sprintf("Sin coeficientes de villa/interacción para '%s' — se omite el plot.", titulo))
+    return(NULL)
+  }
+  
+  ggplot(datos_plot, aes(x = regresion_label, y = media_coef_raw,
+                         color = tipo_coef, shape = tipo_coef)) +
+    geom_hline(yintercept = 0, linetype = "dashed", color = "grey50") +
+    geom_pointrange(aes(ymin = ic_low, ymax = ic_high),
+                    position = position_dodge(width = 0.4),
+                    size = 0.5, linewidth = 0.8) +
+    scale_color_manual(values = c("Villa (dummy)" = "#D7263D",
+                                  "Interacción tiempo × Villa" = "#1B998B")) +
+    coord_flip() +
+    labs(title = titulo, subtitle = subtitulo, x = NULL,
+         y = "Coeficiente estimado (IC 95% Rubin)", color = NULL, shape = NULL) +
+    theme_minimal(base_size = 10) +
+    theme(plot.title = element_text(face = "bold", size = 11), legend.position = "bottom")
+}
 
-p_villa_reg5 <- plot_distribucion_coef(
-  resultados_todas, "reg5", "factor(villa)1",
-  "Villa → log(Días)\n(Reg 5: modelo más rico sin interacción)",
-  color = "#D7263D"
-)
+# --- A.13 Panel de histogramas de villa/interacción por spec ---------------
 
-p_inter_reg6 <- plot_distribucion_coef(
-  resultados_todas, "reg6", "log(tiempo_transporte_cesac_t):factor(villa)1",
-  "Interacción log(Tiempo) × Villa\n(Reg 6)",
-  color = "#1B998B"
-)
+armar_panel_distribucion_villa <- function(resultados, especificaciones, titulo_panel) {
+  combos <- map_dfr(names(especificaciones), function(spec_id) {
+    spec <- especificaciones[[spec_id]]
+    tibble(regresion_id = spec_id, term = terminos_villa_interes(spec))
+  })
+  
+  plots <- pmap(combos, function(regresion_id, term) {
+    lbl       <- especificaciones[[regresion_id]]$label
+    sub_lbl   <- if (term == "factor(villa)1") "Villa" else "Interacción tiempo × Villa"
+    color_usar <- if (term == "factor(villa)1") "#D7263D" else "#1B998B"
+    plot_distribucion_coef(resultados, regresion_id, term,
+                           titulo = paste0(lbl, "\n", sub_lbl), color = color_usar)
+  }) |>
+    compact()  # descarta specs/términos sin datos válidos
+  
+  if (length(plots) == 0) {
+    warning(sprintf("Sin distribuciones para armar '%s'.", titulo_panel))
+    return(NULL)
+  }
+  
+  wrap_plots(plots, ncol = min(4, length(plots))) +
+    plot_annotation(
+      title = titulo_panel,
+      theme = theme(plot.title = element_text(face = "bold", size = 13, hjust = 0.5))
+    )
+}
 
-panel_coeficientes <- (p_villa_reg3 + p_tiempo_reg4 + p_villa_reg5) /
-  (p_nbi_reg5  + p_hac_reg5   + p_inter_reg6) +
-  plot_annotation(
-    title = "Distribución de coeficientes — 1000 simulaciones Monte Carlo",
-    theme = theme(plot.title = element_text(face = "bold", size = 13, hjust = 0.5))
-  )
+# --- Generación: forest plots (7 alternativas) ------------------------------
 
-panel_coeficientes
+forest_estandar      <- plot_forest_villa(resumen_mc,               especificaciones,          "Villa — EE clásicos (FE comuna_regresion)")
+forest_cluster       <- plot_forest_villa(resumen_mc_cluster,       especificaciones,          "Villa — EE cluster comuna_regresion (FE comuna_regresion)")
+forest_comuna_ok     <- plot_forest_villa(resumen_mc_comuna_ok,     especificaciones_comuna_ok,"Villa — EE clásicos (FE comuna_ok)")
+forest_comuna_ok_clu <- plot_forest_villa(resumen_mc_comuna_ok_clus,especificaciones_comuna_ok,"Villa — EE cluster comuna_ok (FE comuna_ok)")
+forest_bp            <- plot_forest_villa(resumen_mc_bp,            especificaciones,          "Villa — Robustez BP (FE comuna_regresion)")
+forest_bp_cok        <- plot_forest_villa(resumen_mc_bp_cok,        especificaciones_comuna_ok,"Villa — Robustez BP (FE comuna_ok)")
+forest_bp_w          <- plot_forest_villa(resumen_mc_bp_w,          especificaciones_comuna_ok,"Villa — Robustez BP + IPW (FE comuna_ok)")
 
+forest_estandar; forest_cluster; forest_comuna_ok; forest_comuna_ok_clu
+forest_bp; forest_bp_cok; forest_bp_w
 
+# --- Generación: paneles de histogramas (7 alternativas) -------------------
 
+hist_estandar      <- armar_panel_distribucion_villa(resultados_todas,               especificaciones,          "Distribución MC — EE clásicos (FE comuna_regresion)")
+hist_cluster       <- armar_panel_distribucion_villa(resultados_todas_cluster,       especificaciones,          "Distribución MC — EE cluster comuna_regresion (FE comuna_regresion)")
+hist_comuna_ok     <- armar_panel_distribucion_villa(resultados_todas_comuna_ok,     especificaciones_comuna_ok,"Distribución MC — EE clásicos (FE comuna_ok)")
+hist_comuna_ok_clu <- armar_panel_distribucion_villa(resultados_todas_comuna_ok_clus,especificaciones_comuna_ok,"Distribución MC — EE cluster comuna_ok (FE comuna_ok)")
+hist_bp            <- armar_panel_distribucion_villa(resultados_bp,                  especificaciones,          "Distribución MC — Robustez BP (FE comuna_regresion)")
+hist_bp_cok        <- armar_panel_distribucion_villa(resultados_bp_cok,              especificaciones_comuna_ok,"Distribución MC — Robustez BP (FE comuna_ok)")
+hist_bp_w          <- armar_panel_distribucion_villa(resultados_bp_w,                especificaciones_comuna_ok,"Distribución MC — Robustez BP + IPW (FE comuna_ok)")
 
+hist_estandar; hist_cluster; hist_comuna_ok; hist_comuna_ok_clu
+hist_bp; hist_bp_cok; hist_bp_w
 
+# --- Exportación -------------------------------------------------------------
+
+guardar_si_existe <- function(plot_obj, archivo, width, height) {
+  if (!is.null(plot_obj)) {
+    ggsave(archivo, plot_obj, width = width, height = height, dpi = 300)
+  }
+}
+
+guardar_si_existe(forest_estandar,      "forest_villa_estandar.png",           7, 5)
+guardar_si_existe(forest_cluster,       "forest_villa_cluster.png",            7, 5)
+guardar_si_existe(forest_comuna_ok,     "forest_villa_comuna_ok.png",          7, 5)
+guardar_si_existe(forest_comuna_ok_clu, "forest_villa_comuna_ok_cluster.png",  7, 5)
+guardar_si_existe(forest_bp,            "forest_villa_robustez_bp.png",        7, 5)
+guardar_si_existe(forest_bp_cok,        "forest_villa_robustez_bp_cok.png",    7, 5)
+guardar_si_existe(forest_bp_w,          "forest_villa_robustez_bp_ipw.png",    7, 5)
+
+guardar_si_existe(hist_estandar,      "hist_villa_estandar.png",          12, 8)
+guardar_si_existe(hist_cluster,       "hist_villa_cluster.png",           12, 8)
+guardar_si_existe(hist_comuna_ok,     "hist_villa_comuna_ok.png",         12, 8)
+guardar_si_existe(hist_comuna_ok_clu, "hist_villa_comuna_ok_cluster.png", 12, 8)
+guardar_si_existe(hist_bp,            "hist_villa_robustez_bp.png",       12, 8)
+guardar_si_existe(hist_bp_cok,        "hist_villa_robustez_bp_cok.png",   12, 8)
+guardar_si_existe(hist_bp_w,          "hist_villa_robustez_bp_ipw.png",   12, 8)
 
 
 # ¿Qué grupos de casos tienen NA en tiempo_transporte_cesac_t?
@@ -1986,7 +2132,7 @@ sort(unique(analisis_barrios$nombre_barrio))
 #    Biometrika); T se interpreta como incorporación de la incertidumbre de
 #    agregación geográfica, no como el EE "verdadero" en sentido estricto.
 #
-# 3) 479 CASOS villa=1 SIN tiempo: individuos con `asentamiento` reportado
+      # 3) 479 CASOS villa=1 SIN tiempo:individuos con `asentamiento` reportado
 #    que no matcheó contra ningún `nombre_barrio` en analisis_barrios. No
 #    se pierden en reg1-3, pero sí en reg4-7. Para recuperarlos, revisar:
 #
