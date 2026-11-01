@@ -119,6 +119,12 @@ reg outcome_itt i.intervencion ,r
 logit outcome_de_proceso i.intervencion ,r or 
 reg outcome_de_proceso i.intervencion ,r 
 
+logit outcome_itt i.intervencion if villa==0 ,r or 
+reg outcome_itt i.intervencion if villa==0 ,r 
+logit outcome_de_proceso i.intervencion if villa==0 ,r or 
+reg outcome_de_proceso i.intervencion if villa==0 ,r 
+
+
 
 logit outcome_itt i.intervencion if villa==1 ,r or 
 reg outcome_itt i.intervencion if villa==1 ,r 
@@ -132,8 +138,11 @@ tabstat outcome_itt outcome_de_proceso if villa==1 , by(intervencion)
 
 *Robustez con turno todos 
 logit turno_todos i.intervencion ,r or 
+reg turno_todos i.intervencion ,r 
 reg turno_todos i.intervencion if villa==0 ,r 
-reg outcome_itt i.intervencion if villa==0 ,r 
+logit turno_todos i.intervencion if villa==0 ,r or
+
+
 
 		*Villa
 logit turno_todos i.intervencion if villa==1 ,r or 
