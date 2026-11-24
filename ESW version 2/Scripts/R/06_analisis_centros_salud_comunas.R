@@ -3,6 +3,7 @@ library(sf)
 library(dplyr)
 library(tidyr)
 library(readr)
+library(readxl)
 
 # ── Configuración ─────────────────────────────────────────────────────────────
 

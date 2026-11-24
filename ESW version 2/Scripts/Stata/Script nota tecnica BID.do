@@ -254,3 +254,6 @@ est store m2
 suest m1 m2 
 
 test [m1_mean]1.intervencion = [m2_mean]1.intervencion
+
+
+reg dias_desde_ultima_consulta i.villa##c.nbi 
